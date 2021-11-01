@@ -62,16 +62,12 @@ function check(win, change) {
   const name = win.get_id();
   // get list of other windows in the current workspace and the current display
   // TODO name this variable better.
-  const w = win.get_workspace().list_windows()
+  const curWksWindows = win.get_workspace().list_windows()
     .filter(w => w !== win && !w.is_always_on_all_workspaces() && win.get_monitor() == w.get_monitor());
-  // check if this method was called for a window that is not maximized
-  // TODO this should be moved out into a separate function and unmaximized signal should be process with that function
-  if (change === Meta.SizeChange.UNFULLSCREEN || change === Meta.SizeChange.UNMAXIMIZE || (change === Meta.SizeChange.MAXIMIZE && win.get_maximized() !== Meta.MaximizeFlags.BOTH)) {
-    // check if the app was previously full screened? 
-    // We handle maximize and full screen separately.
-    // TODO code clean up create clean short functions.
+
+  if (change === Meta.SizeChange.UNFULLSCREEN) {
     if (_full_screen_apps[name] !== undefined) {
-      if (w.length == 0) {
+      if (curWksWindows.length == 0) {
         change_workspace(win, workspacemanager, _full_screen_apps[name]);
       }
       _full_screen_apps[name] = undefined;
@@ -81,7 +77,7 @@ function check(win, change) {
     if (_old_workspaces[name] !== undefined) {
       // go back to the original workspace only if no other window is present in the workspace
       // if another window is present on the current workspace it is likely that we unmaximized current window to work with them side by side 
-      if (w.length == 0) { // TODO expose this as user choice
+      if (curWksWindows.length == 0) { // TODO expose this as user choice
         change_workspace(win, workspacemanager, _old_workspaces[name]);
       }
       // remove it from array since we moved it back to its original workspace 
@@ -91,21 +87,19 @@ function check(win, change) {
     return;
   }
   // save windows with events of FullScreen and maximize to their respective maps to save window location history
-  if (change === Meta.SizeChange.FULLSCREEN) {
+  else if (change === Meta.SizeChange.FULLSCREEN) {
     _full_screen_apps[name] = win.get_workspace().index();
-  } else {
-    _old_workspaces[name] = win.get_workspace().index();
-  }
+  } 
+
   // Check if movement is required based on the number of windows present on current workspace
-  if (w.length >= 1) {
-    let emptyworkspace = first_empty_workspace_index(workspacemanager, win);
+  if (curWksWindows.length >= 1 && (change === Meta.SizeChange.FULLSCREEN || change === Meta.SizeChange.UNFULLSCREEN)) {
+      let emptyworkspace = first_empty_workspace_index(workspacemanager, win)
 
-    // don't try to move it if we're already here
-    if (emptyworkspace == win.get_workspace().index())
-      return;
+      // don't try to move it if we're already here
+      if (emptyworkspace == win.get_workspace().index()) return
 
-    // change workspace
-    change_workspace(win, workspacemanager, emptyworkspace);
+      // change workspace
+      change_workspace(win, workspacemanager, emptyworkspace)
   }
 }
 
@@ -132,9 +126,7 @@ function enable() {
   }));
   // Add size-change event handler for windows that are already created.
   _window_manager_handles.push(global.window_manager.connect('size-change', (_, act, change) => {
-    if (change == Meta.SizeChange.UNFULLSCREEN || change == Meta.SizeChange.FULLSCREEN) {
         check(act.meta_window, change)
-    }
   }));
   _window_manager_handles.push(global.window_manager.connect('destroy', (_, act) => {
     handleWindowClose(act);
